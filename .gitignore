@@ -25,3 +25,6 @@ replay_pid*
 
 # Local config (keep template only)
 src/main/resources/application.yml
+
+# IDE files
+.idea/
