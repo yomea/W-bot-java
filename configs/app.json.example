@@ -1,0 +1,44 @@
+{
+  "agent": {
+    "dashscopeApiKey": "<your_dashscope_api_key>",
+    "bailianBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "bailianModelName": "qwen-plus",
+    "e2bApiKey": "",
+    "tavilyApiKey": "",
+    "postgresDsn": "",
+    "memoryFilePath": "MEMORY.MD",
+    "userId": "cli_user",
+    "sessionId": "",
+    "sessionStateFilePath": ".cybercore_session.json",
+    "retrieveTopK": 4,
+    "enableExecTool": false,
+    "enableCronService": false,
+    "mcpServers": [
+      {
+        "name": "planner",
+        "baseUrl": "http://127.0.0.1:8081",
+        "enabled": true,
+        "discoveryPath": "/tools",
+        "invokePathTemplate": "/tools/{tool}"
+      }
+    ]
+  },
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "appId": "cli_xxx",
+      "appSecret": "xxx",
+      "encryptKey": "",
+      "verificationToken": "",
+      "allowFrom": [
+        "*"
+      ],
+      "groupPolicy": "mention",
+      "replyToMessage": true,
+      "reactEmoji": "THUMBSUP",
+      "port": 8090,
+      "path": "/feishu/events"
+    }
+  },
+  "threadPrefix": "feishu"
+}
