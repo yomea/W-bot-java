@@ -28,3 +28,6 @@ src/main/resources/application.yml
 
 # IDE files
 .idea/
+
+# Build output
+target/
