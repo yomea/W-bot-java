@@ -8,8 +8,8 @@
     <version>0.1.0-SNAPSHOT</version>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <agentscope.version>1.0.9</agentscope.version>
         <jackson.version>2.18.4</jackson.version>
@@ -54,6 +54,15 @@
                 <configuration>
                     <mainClass>com.wbot.Main</mainClass>
                 </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.8.1</version> <!-- 使用合适的版本 -->
+              <configuration>
+                <source>17</source>
+                <target>17</target>
+              </configuration>
             </plugin>
         </plugins>
     </build>
