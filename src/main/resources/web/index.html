@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>W-bot Java</title>
+  <style>
+    :root {
+      --bg: #f4efe5;
+      --panel: rgba(255, 252, 246, 0.92);
+      --panel-strong: #fffaf0;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-soft: #d1fae5;
+      --border: rgba(15, 118, 110, 0.18);
+      --shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 30%),
+        radial-gradient(circle at right, rgba(245, 158, 11, 0.16), transparent 25%),
+        linear-gradient(135deg, #f8f3ea, #ece8df 55%, #e8efe9);
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+      min-height: 100vh;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .sidebar {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0.02em;
+    }
+
+    .brand p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: auto;
+    }
+
+    .session-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid transparent;
+      background: var(--panel-strong);
+      border-radius: 16px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .session-item:hover,
+    .session-item.active {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .session-item strong,
+    .session-item span {
+      display: block;
+    }
+
+    .session-item span {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: calc(100vh - 48px);
+      overflow: hidden;
+    }
+
+    .topbar {
+      padding: 20px 24px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .topbar .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .topbar .meta strong {
+      word-break: break-all;
+    }
+
+    .topbar small {
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.72);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .messages {
+      padding: 24px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 14px 16px;
+      border-radius: 20px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #113c3a;
+      color: white;
+      border-bottom-right-radius: 6px;
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-bottom-left-radius: 6px;
+    }
+
+    .msg.streaming {
+      position: relative;
+    }
+
+    .msg.streaming::after {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 1.1em;
+      margin-left: 4px;
+      vertical-align: text-bottom;
+      background: var(--accent);
+      animation: blink 0.9s steps(1) infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .composer {
+      padding: 18px 24px 24px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 88px;
+      max-height: 220px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.84);
+      font: inherit;
+      color: inherit;
+    }
+
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      margin: auto;
+      max-width: 440px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .main {
+        min-height: 70vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel sidebar">
+      <div class="brand">
+        <h1>W-bot Java</h1>
+        <p>和 Python 版对齐的浏览器入口。可以新建会话、切换会话并查看历史对话。</p>
+      </div>
+      <div class="actions">
+        <button id="newSessionBtn">新建会话</button>
+        <button class="secondary" id="refreshBtn">刷新列表</button>
+      </div>
+      <div id="sessionList" class="session-list"></div>
+    </aside>
+
+    <main class="panel main">
+      <div class="topbar">
+        <div class="meta">
+          <strong id="sessionLabel">未选择会话</strong>
+          <small id="statusLabel">准备就绪</small>
+        </div>
+      </div>
+      <section id="messages" class="messages">
+        <div class="empty">创建一个新会话，或者从左侧恢复最近会话。</div>
+      </section>
+      <form id="chatForm" class="composer">
+        <textarea id="messageInput" placeholder="输入消息，按 Ctrl/Command + Enter 发送"></textarea>
+        <button type="submit">发送</button>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const sessionListEl = document.getElementById("sessionList");
+    const sessionLabelEl = document.getElementById("sessionLabel");
+    const statusLabelEl = document.getElementById("statusLabel");
+    const messagesEl = document.getElementById("messages");
+    const messageInputEl = document.getElementById("messageInput");
+    const chatFormEl = document.getElementById("chatForm");
+    let currentSessionId = "";
+    let streamingNode = null;
+    let requestInFlight = false;
+
+    function setStatus(text) {
+      statusLabelEl.textContent = text;
+    }
+
+    function renderMessages(messages) {
+      messagesEl.innerHTML = "";
+      streamingNode = null;
+      if (!messages.length) {
+        messagesEl.innerHTML = '<div class="empty">这个会话还没有历史消息。</div>';
+        return;
+      }
+      for (const item of messages) {
+        const node = document.createElement("div");
+        node.className = `msg ${item.role === "user" ? "user" : "assistant"}`;
+        node.textContent = item.content || "";
+        messagesEl.appendChild(node);
+      }
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendMessage(role, content, extraClass = "") {
+      if (messagesEl.querySelector(".empty")) {
+        messagesEl.innerHTML = "";
+      }
+      const node = document.createElement("div");
+      node.className = `msg ${role} ${extraClass}`.trim();
+      node.textContent = content || "";
+      messagesEl.appendChild(node);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return node;
+    }
+
+    async function loadSessions() {
+      const res = await fetch("/api/sessions");
+      const data = await res.json();
+      const sessions = data.sessions || [];
+      sessionListEl.innerHTML = "";
+      if (!sessions.length) {
+        sessionListEl.innerHTML = '<div class="empty">还没有最近会话。</div>';
+        return;
+      }
+      for (const item of sessions) {
+        const btn = document.createElement("button");
+        btn.className = `session-item ${item.session_id === currentSessionId ? "active" : ""}`;
+        btn.innerHTML = `<strong>${item.title || item.session_id}</strong><span>${item.updated_at || ""}</span>`;
+        btn.addEventListener("click", () => switchSession(item.session_id));
+        sessionListEl.appendChild(btn);
+      }
+    }
+
+    async function switchSession(sessionId) {
+      currentSessionId = sessionId;
+      sessionLabelEl.textContent = sessionId;
+      setStatus("正在加载历史...");
+      const res = await fetch(`/api/history?session_id=${encodeURIComponent(sessionId)}`);
+      const data = await res.json();
+      renderMessages(data.messages || []);
+      await loadSessions();
+      setStatus("会话已恢复");
+    }
+
+    async function createSession() {
+      const res = await fetch("/api/session/new", { method: "POST" });
+      const data = await res.json();
+      await switchSession(data.session_id);
+    }
+
+    async function sendMessage(text) {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      appendMessage("user", text);
+      streamingNode = appendMessage("assistant", "", "streaming");
+      setStatus("W-bot 正在思考...");
+      try {
+        const res = await fetch("/api/chat/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, session_id: currentSessionId || null })
+        });
+        if (!res.ok || !res.body) {
+          if (streamingNode) {
+            streamingNode.classList.remove("streaming");
+            streamingNode.textContent = "请求失败，请稍后重试。";
+          }
+          setStatus("请求失败");
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let finalReply = "";
+
+        function processEventBlock(block) {
+          const lines = block.split("\n");
+          let eventName = "message";
+          const dataLines = [];
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+          if (!dataLines.length) return;
+          let payload = {};
+          try {
+            payload = JSON.parse(dataLines.join("\n"));
+          } catch {
+            payload = { text: dataLines.join("\n") };
+          }
+
+          if (eventName === "session" && payload.session_id) {
+            currentSessionId = payload.session_id;
+            sessionLabelEl.textContent = currentSessionId;
+            loadSessions();
+            return;
+          }
+          if (eventName === "thinking" || eventName === "status") {
+            setStatus(payload.text || "处理中...");
+            return;
+          }
+          if (eventName === "token") {
+            if (streamingNode) {
+              streamingNode.textContent += payload.text || "";
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+            return;
+          }
+          if (eventName === "error") {
+            if (streamingNode) {
+              streamingNode.classList.remove("streaming");
+              if (!streamingNode.textContent.trim()) {
+                streamingNode.textContent = payload.message || "请求失败，请稍后重试。";
+              }
+            }
+            setStatus("请求失败");
+            return;
+          }
+          if (eventName === "done") {
+            finalReply = payload.reply || "";
+            if (streamingNode) {
+              streamingNode.classList.remove("streaming");
+              if (finalReply && !streamingNode.textContent.trim()) {
+                streamingNode.textContent = finalReply;
+              }
+            }
+            setStatus("回复完成");
+          }
+        }
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+          for (const block of parts) {
+            processEventBlock(block);
+          }
+        }
+
+        if (buffer.trim()) {
+          processEventBlock(buffer);
+        }
+        if (currentSessionId) {
+          await loadSessions();
+        }
+      } catch (error) {
+        if (streamingNode) {
+          streamingNode.classList.remove("streaming");
+          if (!streamingNode.textContent.trim()) {
+            streamingNode.textContent = "连接中断，请稍后重试。";
+          }
+        }
+        setStatus("连接中断");
+      } finally {
+        requestInFlight = false;
+      }
+    }
+
+    chatFormEl.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = messageInputEl.value.trim();
+      if (!text || requestInFlight) return;
+      messageInputEl.value = "";
+      await sendMessage(text);
+    });
+
+    messageInputEl.addEventListener("keydown", async (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        chatFormEl.requestSubmit();
+      }
+    });
+
+    document.getElementById("newSessionBtn").addEventListener("click", createSession);
+    document.getElementById("refreshBtn").addEventListener("click", loadSessions);
+    loadSessions();
+  </script>
+</body>
+</html>

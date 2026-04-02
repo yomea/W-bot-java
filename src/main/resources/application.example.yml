@@ -10,8 +10,12 @@ agent:
   sessionId: ""
   sessionStateFilePath: ".cybercore_session.json"
   retrieveTopK: 4
+  enableStreaming: true
   enableExecTool: false
   enableCronService: false
+  enableSkills: true
+  skillsWorkspaceDir: "skills"
+  skillsBuiltinDir: "src/main/resources/skills_catalog"
   mcpServers:
     - name: "planner"
       baseUrl: "http://127.0.0.1:8081"
@@ -20,6 +24,10 @@ agent:
       invokePathTemplate: "/tools/{tool}"
 
 channels:
+  web:
+    enabled: true
+    host: "127.0.0.1"
+    port: 8000
   feishu:
     enabled: true
     appId: "cli_xxx"
@@ -34,4 +42,4 @@ channels:
     port: 8090
     path: "/feishu/events"
 
-threadPrefix: "feishu"
+threadPrefix: "wbot"
