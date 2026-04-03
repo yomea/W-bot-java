@@ -4,6 +4,7 @@ import com.wbot.cli.CliRunner;
 import com.wbot.config.AppConfig;
 import com.wbot.config.ConfigLoader;
 import com.wbot.feishu.FeishuGatewayServer;
+import com.wbot.web.WebGatewayServer;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +19,11 @@ public class Main {
 
         if ("feishu".equalsIgnoreCase(mode)) {
             FeishuGatewayServer server = new FeishuGatewayServer(config, cwd);
+            server.startBlocking();
+            return;
+        }
+        if ("web".equalsIgnoreCase(mode)) {
+            WebGatewayServer server = new WebGatewayServer(config, cwd);
             server.startBlocking();
             return;
         }

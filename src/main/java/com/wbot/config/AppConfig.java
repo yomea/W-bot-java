@@ -20,13 +20,18 @@ public class AppConfig {
         public String sessionId = "";
         public String sessionStateFilePath = ".cybercore_session.json";
         public int retrieveTopK = 4;
+        public boolean enableStreaming = true;
         public boolean enableExecTool = false;
         public boolean enableCronService = false;
+        public boolean enableSkills = true;
+        public String skillsWorkspaceDir = "skills";
+        public String skillsBuiltinDir = "";
         public List<McpServerConfig> mcpServers = new ArrayList<>();
     }
 
     public static class Channels {
         public FeishuConfig feishu = new FeishuConfig();
+        public WebConfig web = new WebConfig();
     }
 
     public static class FeishuConfig {
@@ -41,6 +46,12 @@ public class AppConfig {
         public boolean replyToMessage = true;
         public int port = 8090;
         public String path = "/feishu/events";
+    }
+
+    public static class WebConfig {
+        public boolean enabled = true;
+        public String host = "127.0.0.1";
+        public int port = 8000;
     }
 
     public static class McpServerConfig {

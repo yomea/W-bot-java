@@ -55,6 +55,9 @@ public final class ConfigLoader {
             if (cfg.channels.feishu == null) {
                 cfg.channels.feishu = new AppConfig.FeishuConfig();
             }
+            if (cfg.channels.web == null) {
+                cfg.channels.web = new AppConfig.WebConfig();
+            }
             if (cfg.threadPrefix == null || cfg.threadPrefix.isBlank()) {
                 cfg.threadPrefix = "feishu";
             }

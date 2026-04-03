@@ -1,8 +1,11 @@
 package com.wbot.tools;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wbot.config.AppConfig;
 import com.wbot.memory.LongTermMemoryStore;
+import com.wbot.skills.SkillsLoader;
+import com.wbot.subagent.SubagentManager;
 import com.wbot.util.Jsons;
 import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
@@ -30,9 +33,14 @@ public final class RuntimeTools {
             AppConfig.AgentConfig config,
             LongTermMemoryStore memoryStore,
             String userId,
-            Path workspaceRoot) {
+            Path workspaceRoot,
+            SubagentManager subagentManager,
+            boolean allowSubagentTools) {
         Toolkit toolkit = new Toolkit();
-        toolkit.registerTool(new BuiltinTools(config, memoryStore, userId, workspaceRoot));
+        SkillsLoader skillsLoader = config.enableSkills
+                ? new SkillsLoader(config.skillsWorkspaceDir, config.skillsBuiltinDir)
+                : null;
+        toolkit.registerTool(new BuiltinTools(config, memoryStore, userId, workspaceRoot, skillsLoader, subagentManager, allowSubagentTools));
         return toolkit;
     }
 
@@ -41,6 +49,9 @@ public final class RuntimeTools {
         private final LongTermMemoryStore memoryStore;
         private final String userId;
         private final Path workspaceRoot;
+        private final SkillsLoader skillsLoader;
+        private final SubagentManager subagentManager;
+        private final boolean allowSubagentTools;
         private final HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -49,11 +60,17 @@ public final class RuntimeTools {
                 AppConfig.AgentConfig config,
                 LongTermMemoryStore memoryStore,
                 String userId,
-                Path workspaceRoot) {
+                Path workspaceRoot,
+                SkillsLoader skillsLoader,
+                SubagentManager subagentManager,
+                boolean allowSubagentTools) {
             this.config = config;
             this.memoryStore = memoryStore;
             this.userId = userId;
             this.workspaceRoot = workspaceRoot.toAbsolutePath().normalize();
+            this.skillsLoader = skillsLoader;
+            this.subagentManager = subagentManager;
+            this.allowSubagentTools = allowSubagentTools;
         }
 
         @Tool(name = "read_file", description = "Read a text file from workspace by line range.")
@@ -245,24 +262,39 @@ public final class RuntimeTools {
             }
         }
 
-        @Tool(name = "spawn", description = "Create a child task record.")
+        @Tool(name = "spawn", description = "Spawn a background subagent for an independent task.")
         public String spawn(
                 @ToolParam(name = "task", description = "Task details") String task,
-                @ToolParam(name = "context", description = "Task context") String context) {
-            Map<String, Object> job = Map.of(
-                    "id", UUID.randomUUID().toString().replace("-", ""),
-                    "task", task,
-                    "context", context == null ? "" : context,
-                    "status", "pending",
-                    "created_at", OffsetDateTime.now().toString());
-            try {
-                Path file = workspaceRoot.resolve(".cybercore_spawn_jobs.jsonl");
-                Files.writeString(file, Jsons.toJson(job) + "\n", StandardCharsets.UTF_8,
-                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-                return "Spawned task: id=" + job.get("id");
-            } catch (Exception e) {
-                return "spawn failed: " + e.getMessage();
+                @ToolParam(name = "label", description = "Optional short label") String label,
+                @ToolParam(name = "agent_type", description = "worker/explore/plan/verify") String agentType) {
+            if (!allowSubagentTools || subagentManager == null) {
+                return "spawn disabled in this runtime";
             }
+            var job = subagentManager.spawn(task, label, agentType, "parent");
+            return "Spawned subagent: id=" + job.id()
+                    + " status=" + job.status()
+                    + " type=" + job.agentType()
+                    + " label=" + (job.label().isBlank() ? "-" : job.label());
+        }
+
+        @Tool(name = "list_subagents", description = "List spawned subagents and their latest status.")
+        public String listSubagents(
+                @ToolParam(name = "status", description = "Optional status filter") String status,
+                @ToolParam(name = "limit", description = "Maximum result count") Integer limit) {
+            if (!allowSubagentTools || subagentManager == null) {
+                return "list_subagents disabled in this runtime";
+            }
+            return Jsons.toJson(subagentManager.list(status, limit == null ? 20 : limit));
+        }
+
+        @Tool(name = "wait_subagent", description = "Wait for a spawned subagent to finish and return its result.")
+        public String waitSubagent(
+                @ToolParam(name = "id", description = "Subagent id") String id,
+                @ToolParam(name = "timeout_seconds", description = "Timeout seconds") Integer timeoutSeconds) {
+            if (!allowSubagentTools || subagentManager == null) {
+                return "wait_subagent disabled in this runtime";
+            }
+            return Jsons.toJson(subagentManager.waitFor(id, timeoutSeconds == null ? 60 : timeoutSeconds));
         }
 
         @Tool(name = "save_memory", description = "Persist long-term memory.")
@@ -274,6 +306,88 @@ public final class RuntimeTools {
                 return "Memory backend unavailable";
             }
             return "Memory saved, id=" + id;
+        }
+
+        @Tool(name = "list_skills", description = "List available builtin/workspace skills and requirement status.")
+        public String listSkills() {
+            if (skillsLoader == null) {
+                return "skills disabled by config.enableSkills=false";
+            }
+            List<Map<String, Object>> payload = new java.util.ArrayList<>();
+            for (SkillsLoader.SkillSpec skill : skillsLoader.listSkills(false)) {
+                SkillsLoader.SkillRequirementCheck check = skillsLoader.checkRequirements(skill);
+                Map<String, Object> item = new java.util.LinkedHashMap<>();
+                item.put("name", skill.name());
+                item.put("description", skill.description());
+                item.put("source", skill.source());
+                item.put("always", skill.always());
+                item.put("path", skill.path().toString());
+                item.put("available", check.available());
+                item.put("missing_bins", check.missingBins());
+                item.put("missing_env", check.missingEnv());
+                payload.add(item);
+            }
+            return Jsons.toJson(payload);
+        }
+
+        @Tool(name = "read_skill", description = "Read a skill document by exact name.")
+        public String readSkill(
+                @ToolParam(name = "skill_name", description = "Exact skill name") String skillName) {
+            if (skillsLoader == null) {
+                return "skills disabled by config.enableSkills=false";
+            }
+            SkillsLoader.SkillSpec skill = skillsLoader.getSkill(skillName);
+            if (skill == null) {
+                return "Skill not found: " + skillName;
+            }
+            SkillsLoader.SkillRequirementCheck check = skillsLoader.checkRequirements(skill);
+            StringBuilder sb = new StringBuilder();
+            sb.append("Skill: ").append(skill.name())
+                    .append("\nSource: ").append(skill.source())
+                    .append("\nPath: ").append(skill.path())
+                    .append("\nAvailable: ").append(check.available());
+            if (!check.missingBins().isEmpty()) {
+                sb.append("\nMissing CLI: ").append(String.join(", ", check.missingBins()));
+            }
+            if (!check.missingEnv().isEmpty()) {
+                sb.append("\nMissing ENV: ").append(String.join(", ", check.missingEnv()));
+            }
+            sb.append("\n\n").append(skill.content());
+            return sb.toString();
+        }
+
+        @Tool(name = "run_skill", description = "Load a skill and produce an execution brief for the current task. Prefer this when a user explicitly asks to use a skill.")
+        public String runSkill(
+                @ToolParam(name = "skill_name", description = "Exact skill name") String skillName,
+                @ToolParam(name = "task", description = "Concrete task to perform with this skill") String task,
+                @ToolParam(name = "arguments_json", description = "Optional JSON object string for structured arguments") String argumentsJson) {
+            if (skillsLoader == null) {
+                return "skills disabled by config.enableSkills=false";
+            }
+            SkillsLoader.SkillSpec skill = skillsLoader.getSkill(skillName);
+            if (skill == null) {
+                return "Skill not found: " + skillName;
+            }
+            SkillsLoader.SkillRequirementCheck check = skillsLoader.checkRequirements(skill);
+            if (!check.available()) {
+                return "Skill dependencies missing. CLI="
+                        + String.join(", ", check.missingBins())
+                        + " ENV=" + String.join(", ", check.missingEnv());
+            }
+            String argsBlock = "";
+            if (argumentsJson != null && !argumentsJson.isBlank()) {
+                try {
+                    JsonNode args = Jsons.readTree(argumentsJson);
+                    argsBlock = "\nArguments:\n" + Jsons.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(args);
+                } catch (Exception e) {
+                    argsBlock = "\nArguments(raw):\n" + argumentsJson;
+                }
+            }
+            return "Follow this skill for the current task.\n"
+                    + "Skill: " + skill.name() + "\n"
+                    + "Description: " + (skill.description().isBlank() ? "(none)" : skill.description()) + "\n"
+                    + "Task:\n" + task + argsBlock + "\n\n"
+                    + "Skill instructions:\n" + skill.content();
         }
 
         @Tool(name = "exec", description = "Execute shell command in workspace.")
@@ -313,7 +427,9 @@ public final class RuntimeTools {
             try {
                 Path file = workspaceRoot.resolve(".cybercore_cron_jobs.json");
                 List<Map<String, Object>> jobs = Files.exists(file)
-                        ? Jsons.MAPPER.readValue(Files.readString(file, StandardCharsets.UTF_8), List.class)
+                        ? Jsons.MAPPER.readValue(
+                                Files.readString(file, StandardCharsets.UTF_8),
+                                new TypeReference<List<Map<String, Object>>>() {})
                         : new java.util.ArrayList<>();
                 if ("list".equalsIgnoreCase(action)) {
                     return Jsons.toJson(jobs);
